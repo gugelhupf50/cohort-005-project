@@ -3,6 +3,19 @@ import type { Route } from "./+types/layout.app";
 import { Sidebar } from "~/components/sidebar";
 import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
+// PROTOTYPE — Notification Feed variants (ticket #9). Not for main.
+import {
+  FeedProvider,
+  PrototypeSwitcher,
+  useFeed,
+} from "~/components/prototype-notification-feed/state";
+import {
+  VariantAHeader,
+  VariantBNav,
+  VariantBPage,
+  VariantCFooter,
+  VariantCPanel,
+} from "~/components/prototype-notification-feed/variants";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
@@ -228,15 +241,16 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
   } = loaderData;
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
+    <FeedProvider
+      userId={currentUser?.id ?? null}
+      role={currentUser?.role ?? null}
+      isTeamAdmin={userIsTeamAdmin}
+    >
+      <Shell
         currentUser={currentUser}
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
-      />
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      >
       <DevUI
         users={users}
         currentUser={currentUser}
@@ -245,6 +259,41 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         countries={countries}
       />
       <Toaster position="bottom-right" richColors closeButton />
+      </Shell>
+      <PrototypeSwitcher />
+    </FeedProvider>
+  );
+}
+
+// PROTOTYPE shell: mounts the chosen Feed variant into the real sidebar/main.
+function Shell({
+  currentUser,
+  recentCourses,
+  isTeamAdmin,
+  children,
+}: {
+  currentUser: React.ComponentProps<typeof Sidebar>["currentUser"];
+  recentCourses: React.ComponentProps<typeof Sidebar>["recentCourses"];
+  isTeamAdmin: boolean;
+  children: React.ReactNode;
+}) {
+  const { variant, open } = useFeed();
+  const signedIn = !!currentUser;
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        currentUser={currentUser}
+        recentCourses={recentCourses}
+        isTeamAdmin={isTeamAdmin}
+        headerSlot={signedIn && variant === "A" ? <VariantAHeader /> : null}
+        navSlot={signedIn && variant === "B" ? <VariantBNav /> : null}
+        footerSlot={signedIn && variant === "C" ? <VariantCFooter /> : null}
+      />
+      <main className="flex-1 overflow-y-auto">
+        {variant === "B" && open ? <VariantBPage /> : <Outlet />}
+      </main>
+      {variant === "C" && <VariantCPanel />}
+      {children}
     </div>
   );
 }
